@@ -56,7 +56,7 @@ pub struct ApiArgs {
     /// HTTP method, such as GET, POST, PUT, PATCH, or DELETE.
     pub method: String,
 
-    /// Path relative to the host, such as /api/v1/risks. A query string rides in the path.
+    /// Path relative to the host, such as /api/v1/projects. A query string rides in the path.
     pub path: String,
 
     /// JSON request body, given inline or read from a file with @path.

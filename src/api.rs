@@ -14,7 +14,7 @@ pub fn run(args: ApiArgs) -> Result<(), Failure> {
     let method = method(&args.method)?;
     if !args.path.starts_with('/') || PathAndQuery::from_str(&args.path).is_err() {
         return Err(Failure::Usage(format!(
-            "The path must start with / and hold no spaces or control characters, such as /api/v1/risks, not {}.",
+            "The path must start with / and hold no spaces or control characters, such as /api/v1/projects, not {}.",
             args.path
         )));
     }
