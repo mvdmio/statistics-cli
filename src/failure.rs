@@ -23,7 +23,6 @@ pub enum ErrorCode {
     LoginTimeout,
     Network,
     NotSignedIn,
-    Upload,
 }
 
 impl ErrorCode {
@@ -43,7 +42,6 @@ impl ErrorCode {
             ErrorCode::LoginTimeout => "login-timeout",
             ErrorCode::Network => "network",
             ErrorCode::NotSignedIn => "not-signed-in",
-            ErrorCode::Upload => "upload",
         }
     }
 }
@@ -57,11 +55,6 @@ pub enum Failure {
     Local { code: ErrorCode, message: String },
     /// The API's ProblemDetails body as it came: exit 1.
     Problem(Vec<u8>),
-    /// The API's 403 `browser-handoff`: a person must finish the act at `handoff_url`. Exit 3.
-    BrowserHandoff {
-        reason: Option<String>,
-        handoff_url: Option<String>,
-    },
 }
 
 impl Failure {
@@ -95,17 +88,6 @@ impl Failure {
             Failure::Problem(body) => {
                 output::print_stderr_raw(&body);
                 ExitCode::from(1)
-            }
-            Failure::BrowserHandoff {
-                reason,
-                handoff_url,
-            } => {
-                output::print_json(&json!({
-                    "status": "browser_handoff",
-                    "reason": reason,
-                    "handoffUrl": handoff_url,
-                }));
-                ExitCode::from(3)
             }
         }
     }

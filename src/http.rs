@@ -74,10 +74,6 @@ impl Client {
         Ok(Client::new(host, credential))
     }
 
-    pub fn host(&self) -> &str {
-        &self.host
-    }
-
     pub fn credential(&self) -> &Credential {
         &self.credential
     }

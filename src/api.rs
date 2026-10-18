@@ -22,7 +22,7 @@ pub fn run(args: ApiArgs) -> Result<(), Failure> {
 
     let mut client = Client::signed_in()?;
     let answer = client.send(&method, &args.path, body.as_deref())?;
-    response::print_response(answer, args.out.as_deref())
+    response::print_response(answer)
 }
 
 fn method(text: &str) -> Result<Method, Failure> {

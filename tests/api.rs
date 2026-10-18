@@ -169,42 +169,15 @@ fn a_forbidden_that_is_no_handoff_is_an_error() {
 }
 
 #[test]
-fn a_browser_handoff_prints_the_link_and_exits_3() {
-    let server = FakeServer::start(|_| {
-        Reply::problem(
-            403,
-            "{\"type\":\"browser-handoff\",\"title\":\"Finish in the browser\",\"status\":403,\
-             \"detail\":\"Subscribing charges money.\",\"handoffUrl\":\"https://auth.example/subscribe\"}",
-        )
-    });
+fn a_browser_handoff_problem_is_printed_as_an_ordinary_problem() {
+    const PROBLEM: &str = "{\"type\":\"browser-handoff\",\"title\":\"Finish in the browser\",\"status\":403,\"detail\":\"Subscribing charges money.\",\"handoffUrl\":\"https://auth.example/subscribe\"}";
+    let server = FakeServer::start(|_| Reply::problem(403, PROBLEM));
 
     let run = api(&server, &["POST", "/api/v1/license/subscribe"]);
 
-    assert_eq!(run.code, 3, "{run:#?}");
-    assert_eq!(
-        run.stdout_json(),
-        json!({
-            "status": "browser_handoff",
-            "reason": "Subscribing charges money.",
-            "handoffUrl": "https://auth.example/subscribe",
-        })
-    );
-}
-
-#[test]
-fn a_browser_handoff_without_detail_gives_the_title_as_reason() {
-    let server = FakeServer::start(|_| {
-        Reply::problem(
-            403,
-            "{\"type\":\"browser-handoff\",\"title\":\"Accept the terms\",\"status\":403,\
-             \"handoffUrl\":\"https://statistics.example/Legal/Accept\"}",
-        )
-    });
-
-    let run = api(&server, &["GET", "/api/v1/risks"]);
-
-    assert_eq!(run.code, 3, "{run:#?}");
-    assert_eq!(run.stdout_json()["reason"], "Accept the terms");
+    assert_eq!(run.code, 1, "{run:#?}");
+    assert_eq!(run.stderr.trim_end(), PROBLEM);
+    assert!(run.stdout.is_empty());
 }
 
 #[test]
@@ -282,48 +255,17 @@ fn retry_after_as_a_past_http_date_retries_at_once() {
     assert_eq!(server.requests().len(), 2);
 }
 
-const PDF: &[u8] = b"%PDF-1.7\n\x00\x01\x02\xff binary";
-
-fn pdf_server() -> FakeServer {
-    FakeServer::start(|_| {
-        Reply::with_type(200, "application/pdf", PDF).header(
-            "Content-Disposition",
-            "attachment; filename=report.pdf; filename*=UTF-8''Rapport%20Q3.pdf",
-        )
-    })
-}
-
 #[test]
-fn a_binary_response_without_out_is_refused() {
-    let server = pdf_server();
+fn a_binary_response_is_refused() {
+    let server = FakeServer::start(|_| {
+        Reply::with_type(200, "application/pdf", b"%PDF-1.7\n\x00\x01\x02\xff binary")
+    });
 
     let run = api(&server, &["GET", "/api/v1/reports/q3"]);
 
     assert_eq!(run.code, 1);
     assert!(run.stdout.is_empty());
     assert_eq!(run.stderr_json()["error"], "binary-response");
-}
-
-#[test]
-fn a_binary_response_with_out_is_written_to_the_file() {
-    let server = pdf_server();
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("q3.pdf");
-    let path_text = path.to_str().unwrap();
-
-    let run = api(&server, &["GET", "/api/v1/reports/q3", "--out", path_text]);
-
-    assert_eq!(run.code, 0, "{run:#?}");
-    assert_eq!(fs::read(&path).unwrap(), PDF);
-    assert_eq!(
-        run.stdout_json(),
-        json!({
-            "path": path_text,
-            "bytes": PDF.len(),
-            "contentType": "application/pdf",
-            "fileName": "Rapport Q3.pdf",
-        })
-    );
 }
 
 #[test]

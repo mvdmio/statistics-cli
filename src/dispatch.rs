@@ -1,74 +1,30 @@
 //! Turns the arguments of a generated command into its request.
 
-use std::path::PathBuf;
-
 use clap::ArgMatches;
-use percent_encoding::{AsciiSet, utf8_percent_encode};
+use percent_encoding::utf8_percent_encode;
 use serde_json::{Map, Value};
 
 use crate::failure::Failure;
-use crate::generated::{self, BODY, FILE, Location, OUT, UploadSlot};
+use crate::generated::{self, BODY};
 use crate::http::Client;
-use crate::openapi::{Operation, Parameter};
+use crate::openapi::Operation;
 use crate::request::{self, UNRESERVED, path_segment};
 use crate::response;
-use crate::upload;
 
-/// Also keeps the characters OData expressions use.
-const QUERY: &AsciiSet = &UNRESERVED
-    .remove(b'$')
-    .remove(b'\'')
-    .remove(b'(')
-    .remove(b')')
-    .remove(b',')
-    .remove(b':')
-    .remove(b'/')
-    .remove(b'@')
-    .remove(b'!')
-    .remove(b'*');
-
-/// Uploads each `--file` through an Upload link first; the call then carries the upload ids.
+/// Builds the request of a generated command from its arguments and sends it.
 pub fn run(operation: &Operation, matches: &ArgMatches) -> Result<(), Failure> {
-    // Only an operation with an upload target has `--file`.
-    let files: Vec<&PathBuf> = matches
-        .try_get_many::<PathBuf>(FILE)
-        .ok()
-        .flatten()
-        .into_iter()
-        .flatten()
-        .collect();
-    let upload = generated::upload_slot(operation).filter(|_| !files.is_empty());
-    let upload_field = upload
-        .as_ref()
-        .filter(|slot| slot.location == Location::Body)
-        .map(|slot| slot.parameter);
-    let mut body = body(operation, matches, upload_field)?;
-    // Only a download has `--out`.
-    let out = matches.try_get_one::<PathBuf>(OUT).ok().flatten();
-
+    let body = body(operation, matches)?.map(|value| value.to_string().into_bytes());
     let mut client = Client::signed_in()?;
-    let uploaded = match &upload {
-        Some(slot) => Some((slot, upload::send_all(&mut client, slot, &files)?)),
-        None => None,
-    };
-    if let (Some(field), Some((_, ids)), Some(Value::Object(fields))) =
-        (upload_field, &uploaded, &mut body)
-    {
-        fields.insert(field.name.clone(), ids.clone());
-    }
-
-    let target = target(operation, matches, uploaded.as_ref());
-    let body = body.map(|value| value.to_string().into_bytes());
-    let answer = client.send(&operation.method, &target, body.as_deref())?;
-    response::print_response(answer, out.map(PathBuf::as_path))
+    let answer = client.send(
+        &operation.method,
+        &target(operation, matches),
+        body.as_deref(),
+    )?;
+    response::print_response(answer)
 }
 
-/// The path with its placeholders filled, and the query string. `uploaded` stands in for its slot's values.
-fn target(
-    operation: &Operation,
-    matches: &ArgMatches,
-    uploaded: Option<&(&UploadSlot, Value)>,
-) -> String {
+/// The path with its placeholders filled, and the query string.
+fn target(operation: &Operation, matches: &ArgMatches) -> String {
     let mut path = operation.path.clone();
     for parameter in &operation.path_params {
         if let Some(value) = matches.get_one::<Value>(&generated::path_id(parameter)) {
@@ -78,22 +34,15 @@ fn target(
     }
     let mut query = Vec::new();
     for parameter in &operation.query_params {
-        let values: Vec<&Value> = match uploaded {
-            Some((slot, ids)) if slot.is(parameter, Location::Query) => match ids {
-                Value::Array(ids) => ids.iter().collect(),
-                id => vec![id],
-            },
-            _ => matches
-                .get_many::<Value>(&generated::query_id(parameter))
-                .into_iter()
-                .flatten()
-                .collect(),
-        };
-        for value in values {
+        for value in matches
+            .get_many::<Value>(&generated::query_id(parameter))
+            .into_iter()
+            .flatten()
+        {
             query.push(format!(
                 "{}={}",
-                utf8_percent_encode(&parameter.name, QUERY),
-                utf8_percent_encode(&text(value), QUERY)
+                utf8_percent_encode(&parameter.name, UNRESERVED),
+                utf8_percent_encode(&text(value), UNRESERVED)
             ));
         }
     }
@@ -104,13 +53,8 @@ fn target(
     path
 }
 
-/// `--body` with the field options set on top of it. A required body with no input is `{}`. `upload` is the
-/// field `--file` fills later, which counts as a field option.
-fn body(
-    operation: &Operation,
-    matches: &ArgMatches,
-    upload: Option<&Parameter>,
-) -> Result<Option<Value>, Failure> {
+/// `--body` with the field options set on top of it. A required body with no input is `{}`.
+fn body(operation: &Operation, matches: &ArgMatches) -> Result<Option<Value>, Failure> {
     let Some(body) = &operation.body else {
         return Ok(None);
     };
@@ -133,7 +77,7 @@ fn body(
         }
     }
 
-    let has_fields = !fields.is_empty() || upload.is_some();
+    let has_fields = !fields.is_empty();
     let value = match whole {
         None if !has_fields && !body.required => return Ok(None),
         None => Value::Object(fields),

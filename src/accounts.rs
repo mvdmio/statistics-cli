@@ -17,7 +17,7 @@ pub fn run(command: AccountsCommand) -> Result<(), Failure> {
             client.send(&Method::POST, &format!("{PATH}/{id}/switch"), None)?
         }
     };
-    response::print_response(answer, None)
+    response::print_response(answer)
 }
 
 /// The Account the credential acts in, or `null` when it acts in none.

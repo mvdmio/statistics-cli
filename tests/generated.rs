@@ -10,8 +10,6 @@ use support::{
 };
 use tempfile::TempDir;
 
-const FILE_BYTES: &[u8] = b"\x00\x01binary\xff";
-
 /// A fake Statistics host that serves an API description which a test can change between runs, and one cache
 /// folder shared by every run of the test.
 struct Host {
@@ -30,10 +28,6 @@ impl Host {
                     Some(document) => Reply::json(200, &document.to_string()),
                     None => Reply::empty(503),
                 };
-            }
-            if request.path().ends_with("/file") {
-                return Reply::with_type(200, "application/octet-stream", FILE_BYTES)
-                    .header("Content-Disposition", "attachment; filename=\"scan.pdf\"");
             }
             Reply::json(200, "{\"done\":true}")
         });
@@ -144,31 +138,10 @@ fn path_parameters_follow_the_path_order_and_are_encoded() {
 }
 
 #[test]
-fn odata_options_send_their_dollar_names() {
-    let host = Host::start();
-
-    let run = host.run(&[
-        "risks",
-        "list",
-        "--filter",
-        "status eq 'Open'",
-        "--top",
-        "5",
-    ]);
-
-    assert_eq!(run.code, 0, "{run:#?}");
-    let request = host.only_api_request();
-    assert_eq!(request.path(), "/api/v1/risks");
-    assert_eq!(request.form("$filter").as_deref(), Some("status eq 'Open'"));
-    assert_eq!(request.form("$top").as_deref(), Some("5"));
-    assert!(request.url.contains("$top=5"), "{}", request.url);
-}
-
-#[test]
 fn an_integer_option_refuses_text_before_any_request() {
     let host = Host::start();
 
-    let run = host.run(&["risks", "list", "--top", "five"]);
+    let run = host.run(&["risks", "create", "--likelihood", "five"]);
 
     assert_eq!(run.code, 2, "{run:#?}");
     assert_eq!(run.stderr_json()["error"], "usage");
@@ -273,20 +246,6 @@ fn a_required_body_with_no_input_is_an_empty_object_and_an_optional_one_is_left_
 }
 
 #[test]
-fn an_enum_option_refuses_other_values_and_lists_them_in_help() {
-    let host = Host::start();
-
-    let wrong = host.run(&["risks", "create", "--status", "Maybe"]);
-    let help = host.run(&["risks", "create", "--help"]);
-
-    assert_eq!(wrong.code, 2, "{wrong:#?}");
-    assert!(host.api_requests().is_empty());
-    assert!(help.stdout.contains("Open"), "{}", help.stdout);
-    assert!(help.stdout.contains("Accepted"), "{}", help.stdout);
-    assert!(help.stdout.contains("Closed"), "{}", help.stdout);
-}
-
-#[test]
 fn a_clash_renames_the_later_option_and_help_says_so() {
     let host = Host::start();
 
@@ -298,7 +257,7 @@ fn a_clash_renames_the_later_option_and_help_says_so() {
         "true",
         "--field-notify",
         "false",
-        "--field-out",
+        "--out",
         "Transfer",
     ]);
     let help = host.run(&["risks", "update", "--help"]);
@@ -317,12 +276,6 @@ fn a_clash_renames_the_later_option_and_help_says_so() {
         "{}",
         help.stdout
     );
-    assert!(
-        help.stdout
-            .contains("named --field-out because --out is taken"),
-        "{}",
-        help.stdout
-    );
 }
 
 #[test]
@@ -331,7 +284,6 @@ fn help_on_an_action_shows_its_summary_description_and_parameters() {
 
     let accept = host.run(&["risks", "accept", "--help"]);
     let create = host.run(&["risks", "create", "--help"]);
-    let list = host.run(&["risks", "list", "--help"]);
 
     assert_eq!(accept.code, 0, "{accept:#?}");
     for expected in [
@@ -361,8 +313,6 @@ fn help_on_an_action_shows_its_summary_description_and_parameters() {
             create.stdout
         );
     }
-    assert!(list.stdout.contains("An OData filter."), "{}", list.stdout);
-    assert!(list.stdout.contains("--top <INTEGER>"), "{}", list.stdout);
     assert!(host.api_requests().is_empty());
 }
 
@@ -534,80 +484,13 @@ fn the_hand_written_accounts_list_wins_over_the_generated_one() {
 }
 
 #[test]
-fn a_download_writes_the_bytes_to_out_and_prints_a_summary() {
-    let host = Host::start();
-    let dir = tempfile::tempdir().unwrap();
-
-    let run = host.run_in(
-        dir.path(),
-        &["evidence", "download", "e1", "--out", "scan.pdf"],
-    );
-
-    assert_eq!(run.code, 0, "{run:#?}");
-    assert_eq!(fs::read(dir.path().join("scan.pdf")).unwrap(), FILE_BYTES);
-    assert_eq!(
-        run.stdout_json(),
-        json!({
-            "path": "scan.pdf",
-            "bytes": FILE_BYTES.len(),
-            "contentType": "application/octet-stream",
-            "fileName": "scan.pdf",
-        })
-    );
-    assert_eq!(host.only_api_request().url, "/api/v1/evidence/e1/file");
-}
-
-#[test]
-fn a_download_without_out_is_a_usage_mistake_and_sends_no_request() {
-    let host = Host::start();
-
-    let run = host.run(&["evidence", "download", "e1"]);
-
-    assert_eq!(run.code, 2, "{run:#?}");
-    assert_eq!(run.stderr_json()["error"], "usage");
-    assert!(host.api_requests().is_empty());
-}
-
-#[test]
-fn out_on_a_command_that_answers_json_is_a_usage_mistake() {
-    let host = Host::start();
-
-    let run = host.run(&["risks", "accept", "r1", "--out", "risk.json"]);
-
-    assert_eq!(run.code, 2, "{run:#?}");
-    assert_eq!(run.stderr_json()["error"], "usage");
-    assert!(host.api_requests().is_empty());
-}
-
-#[test]
-fn an_upload_target_field_says_so_in_help() {
-    let host = Host::start();
-
-    let run = host.run(&["evidence", "create", "--help"]);
-
-    assert_eq!(run.code, 0, "{run:#?}");
-    assert!(
-        run.stdout.contains("--upload-id <STRING>"),
-        "{}",
-        run.stdout
-    );
-    assert!(
-        run.stdout.contains("upload target `evidence`"),
-        "{}",
-        run.stdout
-    );
-}
-
-#[test]
-fn a_generated_error_answer_keeps_the_exit_codes() {
+fn a_generated_browser_handoff_problem_is_printed_as_an_ordinary_problem() {
+    const PROBLEM: &str = "{\"type\":\"browser-handoff\",\"detail\":\"Confirm in the browser.\",\"handoffUrl\":\"https://example.test/go\"}";
     let server = FakeServer::start(|request| {
         if request.path() == DESCRIPTION_PATH {
             return Reply::json(200, &fixture().to_string());
         }
-        Reply::problem(
-            403,
-            "{\"type\":\"browser-handoff\",\"detail\":\"Confirm in the browser.\",\"handoffUrl\":\"https://example.test/go\"}",
-        )
+        Reply::problem(403, PROBLEM)
     });
 
     let run = statistics_in(
@@ -619,20 +502,26 @@ fn a_generated_error_answer_keeps_the_exit_codes() {
         ],
     );
 
-    assert_eq!(run.code, 3, "{run:#?}");
-    assert_eq!(run.stdout_json()["handoffUrl"], "https://example.test/go");
+    assert_eq!(run.code, 1, "{run:#?}");
+    assert_eq!(run.stderr.trim_end(), PROBLEM);
+    assert!(run.stdout.is_empty());
 }
 
 #[test]
-fn an_integer_enum_is_checked_and_sent_as_a_number() {
+fn help_offers_no_chat_command_and_no_file_or_out_option() {
     let host = Host::start();
 
-    let wrong = host.run(&["risks", "create", "--impact", "4"]);
-    let right = host.run(&["risks", "create", "--impact", "2"]);
+    let root = host.run(&["--help"]);
+    let create = host.run(&["evidence", "create", "--help"]);
+    let download = host.run(&["evidence", "download", "--help"]);
 
-    assert_eq!(wrong.code, 2, "{wrong:#?}");
-    assert_eq!(right.code, 0, "{right:#?}");
-    assert_eq!(body_json(&host.only_api_request()), json!({ "impact": 2 }));
+    assert_eq!(root.code, 0, "{root:#?}");
+    assert!(!root.stdout.contains("chat"), "{}", root.stdout);
+    for run in [create, download] {
+        assert_eq!(run.code, 0, "{run:#?}");
+        assert!(!run.stdout.contains("--file"), "{}", run.stdout);
+        assert!(!run.stdout.contains("--out"), "{}", run.stdout);
+    }
 }
 
 #[test]

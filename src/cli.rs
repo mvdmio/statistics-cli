@@ -1,11 +1,8 @@
-use std::path::PathBuf;
-
 use clap::{Args, Parser, Subcommand};
 
 /// Command-line tool for the Statistics REST API. Every command prints JSON.
 ///
-/// Exit codes: 0 success, 1 error, 2 usage mistake, 3 Browser handoff (a person must finish the act in the
-/// browser at `handoffUrl`).
+/// Exit codes: 0 success, 1 error, 2 usage mistake.
 #[derive(Parser)]
 #[command(name = "statistics", version)]
 pub struct Cli {
@@ -27,10 +24,6 @@ pub enum Command {
     /// List the User's Accounts, or move the credential to another one.
     #[command(subcommand)]
     Accounts(AccountsCommand),
-
-    /// Talk to our Assistant.
-    #[command(subcommand)]
-    Chat(ChatCommand),
 
     /// Make one raw call to the REST API with the current credential.
     Api(ApiArgs),
@@ -58,26 +51,6 @@ pub enum AccountsCommand {
     },
 }
 
-#[derive(Subcommand)]
-pub enum ChatCommand {
-    /// Send one message to our Assistant and wait for its reply.
-    ///
-    /// Prints `{"conversationId","turnState","lastError","queued","messages"}`: every message after the sent one, as the API
-    /// gives it. Answer the Assistant's questions and proposals with the next `chat send --conversation
-    /// <conversationId>`.
-    Send(ChatSendArgs),
-}
-
-#[derive(Args)]
-pub struct ChatSendArgs {
-    /// The message, in markdown.
-    pub text: String,
-
-    /// The conversation to continue. Without it, a new conversation starts.
-    #[arg(long, value_name = "ID")]
-    pub conversation: Option<String>,
-}
-
 #[derive(Args)]
 pub struct ApiArgs {
     /// HTTP method, such as GET, POST, PUT, PATCH, or DELETE.
@@ -89,8 +62,4 @@ pub struct ApiArgs {
     /// JSON request body, given inline or read from a file with @path.
     #[arg(long, value_name = "JSON|@FILE")]
     pub body: Option<String>,
-
-    /// Write the response body to this file and print a summary instead.
-    #[arg(long, value_name = "PATH")]
-    pub out: Option<PathBuf>,
 }
