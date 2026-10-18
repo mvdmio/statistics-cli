@@ -27,7 +27,7 @@ const DEFAULT_DEVICE_INTERVAL: u64 = 5;
 const SLOW_DOWN_STEP: u64 = 5;
 const DEVICE_CODE_GRANT: &str = "urn:ietf:params:oauth:grant-type:device_code";
 
-/// `compliance login`: signs in through Auth, in the browser or with a device code, and stores the sign-in.
+/// `statistics login`: signs in through Auth, in the browser or with a device code, and stores the sign-in.
 pub fn run(args: LoginArgs) -> Result<(), Failure> {
     let host = config::host();
     let agent = http::agent();
@@ -131,7 +131,7 @@ fn wait_for_code(listener: &TcpListener, state: &str) -> Result<String, Failure>
     }
     Err(Failure::local(
         ErrorCode::LoginTimeout,
-        "No sign-in arrived within 5 minutes. Run `compliance login` again.",
+        "No sign-in arrived within 5 minutes. Run `statistics login` again.",
     ))
 }
 
@@ -178,7 +178,7 @@ fn answer_callback(stream: TcpStream, state: &str) -> Option<Result<String, Fail
         Ok(_) => respond(
             &stream,
             "200 OK",
-            "You are signed in to the Compliance CLI. You can close this window.",
+            "You are signed in to the Statistics CLI. You can close this window.",
         ),
         Err(_) => respond(
             &stream,
@@ -191,7 +191,7 @@ fn answer_callback(stream: TcpStream, state: &str) -> Option<Result<String, Fail
 
 fn respond(mut stream: &TcpStream, status: &str, text: &str) {
     let page = format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Compliance CLI</title></head><body><p>{text}</p></body></html>"
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Statistics CLI</title></head><body><p>{text}</p></body></html>"
     );
     // Ignored: the browser may have gone; the terminal carries the outcome.
     let _ = write!(
@@ -263,7 +263,7 @@ fn device_sign_in(agent: &Agent, server: &AuthServer) -> Result<SignIn, Failure>
         if Instant::now() >= deadline {
             return Err(Failure::local(
                 ErrorCode::ExpiredToken,
-                "The device code expired before the sign-in finished. Run `compliance login` again.",
+                "The device code expired before the sign-in finished. Run `statistics login` again.",
             ));
         }
         match oauth::request_tokens(agent, server, &form, None)? {

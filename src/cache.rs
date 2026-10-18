@@ -16,11 +16,11 @@ pub const MAX_AGE: Duration = Duration::from_secs(60 * 60);
 /// Keeps a key readable in its file name, and makes that name unique per key.
 const FILE_NAME: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.').remove(b'-');
 
-/// `COMPLIANCE_CACHE_DIR`, else `compliance/` in the user's cache folder; `<kind>-<key>.json` in it.
+/// `STATISTICS_CACHE_DIR`, else `statistics/` in the user's cache folder; `<kind>-<key>.json` in it.
 pub fn file(kind: &str, key: &str) -> Option<PathBuf> {
-    let folder = match env::var_os("COMPLIANCE_CACHE_DIR") {
+    let folder = match env::var_os("STATISTICS_CACHE_DIR") {
         Some(dir) if !dir.is_empty() => PathBuf::from(dir),
-        _ => dirs::cache_dir()?.join("compliance"),
+        _ => dirs::cache_dir()?.join("statistics"),
     };
     Some(folder.join(format!(
         "{kind}-{}.json",

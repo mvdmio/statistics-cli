@@ -10,7 +10,7 @@ use crate::store::{self, SignIn};
 /// What a request authenticates with.
 #[derive(Clone, Debug)]
 pub enum Credential {
-    /// A Personal token from `COMPLIANCE_TOKEN`. Never refreshed or stored.
+    /// A Personal token from `STATISTICS_TOKEN`. Never refreshed or stored.
     PersonalToken(String),
     /// The stored sign-in: an Agent connection.
     AgentConnection(SignIn),
@@ -33,15 +33,15 @@ impl Credential {
 
     pub fn source(&self) -> &'static str {
         match self {
-            Credential::PersonalToken(_) => "COMPLIANCE_TOKEN",
+            Credential::PersonalToken(_) => "STATISTICS_TOKEN",
             Credential::AgentConnection(_) => "stored sign-in",
         }
     }
 }
 
-/// `COMPLIANCE_TOKEN` when set, else the host's stored sign-in.
+/// `STATISTICS_TOKEN` when set, else the host's stored sign-in.
 pub fn find(host: &str) -> Result<Option<Credential>, Failure> {
-    if let Ok(token) = env::var("COMPLIANCE_TOKEN")
+    if let Ok(token) = env::var("STATISTICS_TOKEN")
         && !token.trim().is_empty()
     {
         return Ok(Some(Credential::PersonalToken(token.trim().to_string())));
@@ -54,7 +54,7 @@ pub fn require(host: &str) -> Result<Credential, Failure> {
     find(host)?.ok_or_else(|| {
         Failure::local(
             ErrorCode::NotSignedIn,
-            "No credential. Run `compliance login`, or set COMPLIANCE_TOKEN to a Personal token.",
+            "No credential. Run `statistics login`, or set STATISTICS_TOKEN to a Personal token.",
         )
     })
 }
@@ -89,6 +89,6 @@ pub fn refresh(agent: &Agent, host: &str, sign_in: &SignIn) -> Result<SignIn, Fa
 fn sign_in_ended(host: &str) -> Failure {
     Failure::local(
         ErrorCode::NotSignedIn,
-        format!("The sign-in for {host} has ended. Run `compliance login` to sign in again."),
+        format!("The sign-in for {host} has ended. Run `statistics login` to sign in again."),
     )
 }

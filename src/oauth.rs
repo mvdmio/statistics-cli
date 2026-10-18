@@ -11,7 +11,7 @@ use crate::http;
 use crate::store::{self, SignIn, User};
 
 /// The CLI's pre-registered public client at Auth.
-pub const CLIENT_ID: &str = "mvdmio.compliance_cli";
+pub const CLIENT_ID: &str = "mvdmio.statistics_cli";
 
 /// Asked for on authorize and device requests, so the token response carries an `id_token` with the User.
 pub const SCOPE: &str = "openid";

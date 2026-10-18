@@ -12,7 +12,7 @@ const CONVERSATIONS: &str = "/api/v1/conversations";
 /// The longest the API holds a message read for a running turn.
 const WAIT_SECONDS: u32 = 60;
 
-/// `compliance chat send`.
+/// `statistics chat send`.
 pub fn run(command: ChatCommand) -> Result<(), Failure> {
     match command {
         ChatCommand::Send(args) => send(args),

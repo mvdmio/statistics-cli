@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
 use support::{
-    DESCRIPTION_PATH, FakeServer, Recorded, Reply, Run, TOKEN, body_json, compliance_with_token,
-    fixture,
+    DESCRIPTION_PATH, FakeServer, Recorded, Reply, Run, TOKEN, body_json, fixture,
+    statistics_with_token,
 };
 use tempfile::TempDir;
 
@@ -40,7 +40,7 @@ struct Links {
     max_bytes: Option<u64>,
 }
 
-/// A fake Compliance host that serves the fixture description, `POST /api/v1/uploads`, and the Upload links it
+/// A fake Statistics host that serves the fixture description, `POST /api/v1/uploads`, and the Upload links it
 /// hands out under `/uploads/<token>`, with a part size of `PART_SIZE`.
 struct Host {
     server: FakeServer,
@@ -95,7 +95,7 @@ impl Host {
     }
 
     fn run(&self, args: &[&str]) -> Run {
-        compliance_with_token(&self.server, args)
+        statistics_with_token(&self.server, args)
     }
 
     fn requests(&self) -> Vec<Recorded> {

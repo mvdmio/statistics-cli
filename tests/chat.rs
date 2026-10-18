@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use serde_json::{Value, json};
-use support::{FakeServer, Recorded, Reply, compliance_with_token};
+use support::{FakeServer, Recorded, Reply, statistics_with_token};
 
 const CREATED: &str = "c0ffee00-0000-4000-8000-000000000001";
 const SPLIT: &str = "5b1170ff-0000-4000-8000-000000000002";
@@ -67,7 +67,7 @@ fn message(seq: i64, text: &str) -> Value {
 }
 
 fn chat(server: &FakeServer, args: &[&str]) -> support::Run {
-    compliance_with_token(server, &[&["chat", "send"], args].concat())
+    statistics_with_token(server, &[&["chat", "send"], args].concat())
 }
 
 fn calls(server: &FakeServer) -> Vec<String> {
@@ -213,7 +213,7 @@ fn a_browser_handoff_exits_3() {
         "type": "browser-handoff",
         "title": "Finish this in the browser.",
         "status": 403,
-        "handoffUrl": "https://compliance.example/billing",
+        "handoffUrl": "https://statistics.example/billing",
     });
     let server = conversations(Reply::problem(403, &problem.to_string()), vec![]);
 
@@ -225,7 +225,7 @@ fn a_browser_handoff_exits_3() {
         json!({
             "status": "browser_handoff",
             "reason": "Finish this in the browser.",
-            "handoffUrl": "https://compliance.example/billing",
+            "handoffUrl": "https://statistics.example/billing",
         })
     );
 }

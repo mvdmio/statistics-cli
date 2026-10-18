@@ -1,5 +1,5 @@
 ---
-name: compliance
+name: statistics
 description: Use the `compliance` command-line tool to read and change a Compliance Account (risks, controls, evidence, frameworks, imports, and every other register) through its REST API, and to talk to its Assistant. Use it when a person asks you to look something up in Compliance, change it, upload a file to it, or ask its Assistant. Every command prints JSON.
 ---
 

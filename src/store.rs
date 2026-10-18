@@ -37,16 +37,16 @@ struct Credentials {
     hosts: BTreeMap<String, SignIn>,
 }
 
-/// `COMPLIANCE_CONFIG_DIR`, else `compliance/` in the user's config folder.
+/// `STATISTICS_CONFIG_DIR`, else `statistics/` in the user's config folder.
 pub fn folder() -> Result<PathBuf, Failure> {
-    match env::var_os("COMPLIANCE_CONFIG_DIR") {
+    match env::var_os("STATISTICS_CONFIG_DIR") {
         Some(dir) if !dir.is_empty() => Ok(PathBuf::from(dir)),
         _ => dirs::config_dir()
-            .map(|dir| dir.join("compliance"))
+            .map(|dir| dir.join("statistics"))
             .ok_or_else(|| {
                 Failure::local(
                     ErrorCode::Config,
-                    "Found no config folder for the stored sign-in. Set COMPLIANCE_CONFIG_DIR.",
+                    "Found no config folder for the stored sign-in. Set STATISTICS_CONFIG_DIR.",
                 )
             }),
     }
@@ -163,7 +163,7 @@ fn read(path: &Path) -> Result<Credentials, Failure> {
         Failure::local(
             ErrorCode::Credentials,
             format!(
-                "{} does not parse ({error}). Delete it and run `compliance login`.",
+                "{} does not parse ({error}). Delete it and run `statistics login`.",
                 path.display()
             ),
         )

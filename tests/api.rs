@@ -5,17 +5,17 @@ use std::net::TcpListener;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde_json::json;
-use support::{FakeServer, Reply, TOKEN, compliance, compliance_in, compliance_with_token};
+use support::{FakeServer, Reply, TOKEN, statistics, statistics_in, statistics_with_token};
 
 fn env(server: &FakeServer) -> Vec<(&'static str, String)> {
     vec![
-        ("COMPLIANCE_URL", server.url()),
-        ("COMPLIANCE_TOKEN", TOKEN.into()),
+        ("STATISTICS_URL", server.url()),
+        ("STATISTICS_TOKEN", TOKEN.into()),
     ]
 }
 
 fn api(server: &FakeServer, args: &[&str]) -> support::Run {
-    compliance_with_token(server, &[&["api"], args].concat())
+    statistics_with_token(server, &[&["api"], args].concat())
 }
 
 #[test]
@@ -32,7 +32,7 @@ fn get_sends_the_bearer_and_user_agent_and_prints_compact_json() {
     assert_eq!(request.header("Authorization"), Some("Bearer cmp_pat_test"));
     assert_eq!(
         request.header("User-Agent"),
-        Some(concat!("compliance-cli/", env!("CARGO_PKG_VERSION")))
+        Some(concat!("statistics-cli/", env!("CARGO_PKG_VERSION")))
     );
 }
 
@@ -40,11 +40,11 @@ fn get_sends_the_bearer_and_user_agent_and_prints_compact_json() {
 fn a_trailing_slash_on_the_host_is_ignored() {
     let server = FakeServer::start(|_| Reply::json(200, "{}"));
 
-    let run = compliance(
+    let run = statistics(
         &["api", "get", "/api/v1/risks"],
         &[
-            ("COMPLIANCE_URL", &format!("{}/", server.url())),
-            ("COMPLIANCE_TOKEN", TOKEN),
+            ("STATISTICS_URL", &format!("{}/", server.url())),
+            ("STATISTICS_TOKEN", TOKEN),
         ],
     );
 
@@ -77,7 +77,7 @@ fn file_body_is_sent_as_json() {
     let env = env(&server);
     let env: Vec<(&str, &str)> = env.iter().map(|(k, v)| (*k, v.as_str())).collect();
 
-    let run = compliance_in(
+    let run = statistics_in(
         dir.path(),
         &["api", "PATCH", "/api/v1/risks/r1", "--body", "@risk.json"],
         &env,
@@ -197,7 +197,7 @@ fn a_browser_handoff_without_detail_gives_the_title_as_reason() {
         Reply::problem(
             403,
             "{\"type\":\"browser-handoff\",\"title\":\"Accept the terms\",\"status\":403,\
-             \"handoffUrl\":\"https://compliance.example/Legal/Accept\"}",
+             \"handoffUrl\":\"https://statistics.example/Legal/Accept\"}",
         )
     });
 
@@ -330,25 +330,25 @@ fn a_binary_response_with_out_is_written_to_the_file() {
 fn no_credential_fails_locally_and_names_both_ways_in() {
     let server = FakeServer::start(|_| Reply::json(200, "{}"));
 
-    let run = compliance(
+    let run = statistics(
         &["api", "GET", "/api/v1/risks"],
-        &[("COMPLIANCE_URL", &server.url())],
+        &[("STATISTICS_URL", &server.url())],
     );
 
     assert_eq!(run.code, 1);
     let error = run.stderr_json();
     assert_eq!(error["error"], "not-signed-in");
     let message = error["message"].as_str().unwrap();
-    assert!(message.contains("compliance login"), "{message}");
-    assert!(message.contains("COMPLIANCE_TOKEN"), "{message}");
+    assert!(message.contains("statistics login"), "{message}");
+    assert!(message.contains("STATISTICS_TOKEN"), "{message}");
     assert!(server.requests().is_empty());
 }
 
 #[test]
 fn an_invalid_host_is_a_local_error_not_a_usage_mistake() {
-    let run = compliance(
+    let run = statistics(
         &["api", "GET", "/api/v1/risks"],
-        &[("COMPLIANCE_URL", "not a url"), ("COMPLIANCE_TOKEN", TOKEN)],
+        &[("STATISTICS_URL", "not a url"), ("STATISTICS_TOKEN", TOKEN)],
     );
 
     assert_eq!(run.code, 1, "{run:#?}");
@@ -363,11 +363,11 @@ fn an_unreachable_host_is_a_network_error() {
         .unwrap()
         .port();
 
-    let run = compliance(
+    let run = statistics(
         &["api", "GET", "/api/v1/risks"],
         &[
-            ("COMPLIANCE_URL", &format!("http://127.0.0.1:{port}")),
-            ("COMPLIANCE_TOKEN", TOKEN),
+            ("STATISTICS_URL", &format!("http://127.0.0.1:{port}")),
+            ("STATISTICS_TOKEN", TOKEN),
         ],
     );
 

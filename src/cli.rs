@@ -2,12 +2,12 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 
-/// Command-line tool for the Compliance REST API. Every command prints JSON.
+/// Command-line tool for the Statistics REST API. Every command prints JSON.
 ///
 /// Exit codes: 0 success, 1 error, 2 usage mistake, 3 Browser handoff (a person must finish the act in the
 /// browser at `handoffUrl`).
 #[derive(Parser)]
-#[command(name = "compliance", version)]
+#[command(name = "statistics", version)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -18,7 +18,7 @@ pub enum Command {
     /// Sign in through Auth in the browser, or with a device code, and store the sign-in.
     Login(LoginArgs),
 
-    /// End the stored sign-in at Auth and forget it. COMPLIANCE_TOKEN is not touched.
+    /// End the stored sign-in at Auth and forget it. STATISTICS_TOKEN is not touched.
     Logout,
 
     /// Show the host, the credential in use, the User, and the Account commands act in.
@@ -53,7 +53,7 @@ pub enum AccountsCommand {
 
     /// Move the credential into another Account, for every later command.
     Switch {
-        /// The Account id, from `compliance accounts list`.
+        /// The Account id, from `statistics accounts list`.
         id: u64,
     },
 }

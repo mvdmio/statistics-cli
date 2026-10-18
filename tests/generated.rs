@@ -6,13 +6,13 @@ use std::time::{Duration, SystemTime};
 
 use serde_json::{Value, json};
 use support::{
-    DESCRIPTION_PATH, FakeServer, Recorded, Reply, Run, TOKEN, body_json, compliance_in, fixture,
+    DESCRIPTION_PATH, FakeServer, Recorded, Reply, Run, TOKEN, body_json, fixture, statistics_in,
 };
 use tempfile::TempDir;
 
 const FILE_BYTES: &[u8] = b"\x00\x01binary\xff";
 
-/// A fake Compliance host that serves an API description which a test can change between runs, and one cache
+/// A fake Statistics host that serves an API description which a test can change between runs, and one cache
 /// folder shared by every run of the test.
 struct Host {
     server: FakeServer,
@@ -55,13 +55,13 @@ impl Host {
     fn run_in(&self, dir: &std::path::Path, args: &[&str]) -> Run {
         let url = self.server.url();
         let cache = self.cache.path().to_str().expect("a UTF-8 path");
-        compliance_in(
+        statistics_in(
             dir,
             args,
             &[
-                ("COMPLIANCE_URL", &url),
-                ("COMPLIANCE_TOKEN", TOKEN),
-                ("COMPLIANCE_CACHE_DIR", cache),
+                ("STATISTICS_URL", &url),
+                ("STATISTICS_TOKEN", TOKEN),
+                ("STATISTICS_CACHE_DIR", cache),
             ],
         )
     }
@@ -610,12 +610,12 @@ fn a_generated_error_answer_keeps_the_exit_codes() {
         )
     });
 
-    let run = compliance_in(
+    let run = statistics_in(
         &std::env::temp_dir(),
         &["risks", "accept", "r1"],
         &[
-            ("COMPLIANCE_URL", &server.url()),
-            ("COMPLIANCE_TOKEN", TOKEN),
+            ("STATISTICS_URL", &server.url()),
+            ("STATISTICS_TOKEN", TOKEN),
         ],
     );
 

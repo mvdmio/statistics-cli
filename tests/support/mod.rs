@@ -1,4 +1,4 @@
-//! Drives the built `compliance` binary against in-process fake Compliance and Auth hosts.
+//! Drives the built `statistics` binary against in-process fake Statistics and Auth hosts.
 
 #![allow(dead_code)]
 
@@ -108,7 +108,7 @@ impl Reply {
 
 type Handler = dyn Fn(&Recorded) -> Reply + Send + Sync;
 
-/// A fake Compliance host on `127.0.0.1:<free port>` that records every request.
+/// A fake Statistics host on `127.0.0.1:<free port>` that records every request.
 pub struct FakeServer {
     server: Arc<tiny_http::Server>,
     requests: Arc<Mutex<Vec<Recorded>>>,
@@ -219,30 +219,30 @@ impl Run {
     }
 }
 
-/// The Personal token the tests pass in `COMPLIANCE_TOKEN`.
+/// The Personal token the tests pass in `STATISTICS_TOKEN`.
 pub const TOKEN: &str = "cmp_pat_test";
 
-/// Runs `compliance <args>` against `server` with the Personal token `TOKEN`.
-pub fn compliance_with_token(server: &FakeServer, args: &[&str]) -> Run {
-    compliance(
+/// Runs `statistics <args>` against `server` with the Personal token `TOKEN`.
+pub fn statistics_with_token(server: &FakeServer, args: &[&str]) -> Run {
+    statistics(
         args,
         &[
-            ("COMPLIANCE_URL", &server.url()),
-            ("COMPLIANCE_TOKEN", TOKEN),
+            ("STATISTICS_URL", &server.url()),
+            ("STATISTICS_TOKEN", TOKEN),
         ],
     )
 }
 
-/// Runs `compliance <args>` with only the given `COMPLIANCE_*` variables set.
-pub fn compliance(args: &[&str], env: &[(&str, &str)]) -> Run {
-    compliance_in(Path::new("."), args, env)
+/// Runs `statistics <args>` with only the given `STATISTICS_*` variables set.
+pub fn statistics(args: &[&str], env: &[(&str, &str)]) -> Run {
+    statistics_in(Path::new("."), args, env)
 }
 
-pub fn compliance_in(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Run {
+pub fn statistics_in(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Run {
     let config = tempfile::tempdir().expect("a temporary config folder");
     let output = command(dir, args, env, config.path())
         .output()
-        .expect("run the compliance binary");
+        .expect("run the statistics binary");
     Run::from_output(output)
 }
 
@@ -250,18 +250,18 @@ pub fn compliance_in(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Run {
 /// and `config/cache` as the cache folder unless `env` names them, so the stored sign-in and cached API
 /// description of the person running the tests stay out.
 pub fn command(dir: &Path, args: &[&str], env: &[(&str, &str)], config: &Path) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_compliance"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_statistics"));
     command.current_dir(dir).args(args);
     for (name, _) in std::env::vars() {
-        if name.starts_with("COMPLIANCE_") {
+        if name.starts_with("STATISTICS_") {
             command.env_remove(name);
         }
     }
     for name in ["DISPLAY", "WAYLAND_DISPLAY"] {
         command.env_remove(name);
     }
-    command.env("COMPLIANCE_CONFIG_DIR", config);
-    command.env("COMPLIANCE_CACHE_DIR", config.join("cache"));
+    command.env("STATISTICS_CONFIG_DIR", config);
+    command.env("STATISTICS_CACHE_DIR", config.join("cache"));
     command.envs(env.iter().copied());
     command
 }
@@ -275,7 +275,7 @@ pub fn fixture() -> Value {
 
 pub const RESOURCE_PATH: &str = "/api";
 
-/// Compliance's Protected Resource Metadata, naming `auth` as the authorization server.
+/// Statistics's Protected Resource Metadata, naming `auth` as the authorization server.
 pub fn resource_metadata(request: &Recorded, auth: &str) -> Option<Reply> {
     (request.path() == "/.well-known/oauth-protected-resource/api").then(|| {
         let body = json!({
@@ -346,7 +346,7 @@ pub fn credentials_path(config: &Path) -> std::path::PathBuf {
     config.join("credentials.json")
 }
 
-/// Stores a sign-in for `host` as `compliance login` leaves it.
+/// Stores a sign-in for `host` as `statistics login` leaves it.
 pub fn store_sign_in(
     config: &Path,
     host: &str,

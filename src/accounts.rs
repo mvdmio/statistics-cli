@@ -8,7 +8,7 @@ use crate::response;
 
 const PATH: &str = "/api/v1/accounts";
 
-/// `compliance accounts list` and `compliance accounts switch <id>`.
+/// `statistics accounts list` and `statistics accounts switch <id>`.
 pub fn run(command: AccountsCommand) -> Result<(), Failure> {
     let mut client = Client::signed_in()?;
     let answer = match command {

@@ -4,17 +4,17 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde_json::{Value, json};
 use support::{
-    FakeServer, Recorded, Reply, Run, accounts_list, auth_metadata, compliance, credentials_path,
-    id_token, oauth_error, read_credentials, resource_metadata, store_sign_in, tokens, unix_now,
+    FakeServer, Recorded, Reply, Run, accounts_list, auth_metadata, credentials_path, id_token,
+    oauth_error, read_credentials, resource_metadata, statistics, store_sign_in, tokens, unix_now,
 };
 use tempfile::TempDir;
 
-const CLIENT_ID: &str = "mvdmio.compliance_cli";
+const CLIENT_ID: &str = "mvdmio.statistics_cli";
 
-/// A fake Compliance host whose Protected Resource Metadata names a separate fake Auth, and a config folder.
+/// A fake Statistics host whose Protected Resource Metadata names a separate fake Auth, and a config folder.
 struct Hosts {
     auth: FakeServer,
-    compliance: FakeServer,
+    statistics: FakeServer,
     config: TempDir,
 }
 
@@ -35,18 +35,18 @@ impl Hosts {
             auth_metadata(request).unwrap_or_else(|| auth(request))
         });
         let issuer = format!("{}/", auth.url());
-        let compliance = FakeServer::start(move |request| {
+        let statistics = FakeServer::start(move |request| {
             resource_metadata(request, &issuer).unwrap_or_else(|| api(request))
         });
         Hosts {
             auth,
-            compliance,
+            statistics,
             config,
         }
     }
 
     fn host(&self) -> String {
-        self.compliance.url()
+        self.statistics.url()
     }
 
     fn resource(&self) -> String {
@@ -57,11 +57,11 @@ impl Hosts {
         let host = self.host();
         let config = self.config.path().to_string_lossy().into_owned();
         let mut all = vec![
-            ("COMPLIANCE_URL", host.as_str()),
-            ("COMPLIANCE_CONFIG_DIR", config.as_str()),
+            ("STATISTICS_URL", host.as_str()),
+            ("STATISTICS_CONFIG_DIR", config.as_str()),
         ];
         all.extend_from_slice(env);
-        compliance(args, &all)
+        statistics(args, &all)
     }
 
     fn store(&self, access_token: &str, expires_at: u64, refresh_token: &str) {
@@ -87,7 +87,7 @@ impl Hosts {
     }
 
     fn api_requests(&self) -> Vec<Recorded> {
-        self.compliance
+        self.statistics
             .requests()
             .into_iter()
             .filter(|request| request.path().starts_with("/api/"))
@@ -207,14 +207,14 @@ fn auth_is_found_only_through_the_protected_resource_metadata() {
     let run = hosts.run(&["login", "--device"], &[]);
 
     assert_eq!(run.code, 0, "{run:#?}");
-    let compliance_paths: Vec<String> = hosts
-        .compliance
+    let statistics_paths: Vec<String> = hosts
+        .statistics
         .requests()
         .iter()
         .map(|request| request.path().to_string())
         .collect();
     assert_eq!(
-        compliance_paths,
+        statistics_paths,
         vec![
             "/.well-known/oauth-protected-resource/api",
             "/api/v1/accounts"
@@ -426,7 +426,7 @@ fn a_refresh_answered_invalid_grant_removes_only_that_hosts_entry_and_asks_for_l
         error["message"]
             .as_str()
             .unwrap()
-            .contains("compliance login"),
+            .contains("statistics login"),
         "{error}"
     );
     assert!(hosts.api_requests().is_empty());
@@ -438,13 +438,13 @@ fn a_refresh_answered_invalid_grant_removes_only_that_hosts_entry_and_asks_for_l
 }
 
 #[test]
-fn compliance_token_wins_over_the_stored_sign_in_and_is_never_refreshed_or_stored() {
+fn statistics_token_wins_over_the_stored_sign_in_and_is_never_refreshed_or_stored() {
     let hosts = Hosts::start(rotating_auth, ok_api);
     hosts.store("access-1", unix_now(), "refresh-1");
 
     let run = hosts.run(
         &["api", "GET", "/api/v1/risks"],
-        &[("COMPLIANCE_TOKEN", "cmp_pat_test")],
+        &[("STATISTICS_TOKEN", "cmp_pat_test")],
     );
 
     assert_eq!(run.code, 0, "{run:#?}");
@@ -467,7 +467,7 @@ fn logout_revokes_the_refresh_token_then_deletes_the_file() {
     );
     hosts.store("access-1", unix_now() + 3600, "refresh-1");
 
-    let run = hosts.run(&["logout"], &[("COMPLIANCE_TOKEN", "cmp_pat_test")]);
+    let run = hosts.run(&["logout"], &[("STATISTICS_TOKEN", "cmp_pat_test")]);
 
     assert_eq!(run.code, 0, "{run:#?}");
     assert_eq!(run.stdout_json(), json!({ "status": "logged_out" }));
@@ -500,14 +500,14 @@ fn logout_without_a_stored_sign_in_succeeds_without_a_request() {
     assert_eq!(run.code, 0, "{run:#?}");
     assert_eq!(run.stdout_json(), json!({ "status": "logged_out" }));
     assert!(hosts.auth.requests().is_empty());
-    assert!(hosts.compliance.requests().is_empty());
+    assert!(hosts.statistics.requests().is_empty());
 }
 
 #[test]
 fn status_with_a_personal_token_names_it_and_the_current_account() {
     let hosts = Hosts::start(|_| Reply::empty(404), accounts_api);
 
-    let run = hosts.run(&["status"], &[("COMPLIANCE_TOKEN", "cmp_pat_test")]);
+    let run = hosts.run(&["status"], &[("STATISTICS_TOKEN", "cmp_pat_test")]);
 
     assert_eq!(run.code, 0, "{run:#?}");
     assert_eq!(
@@ -515,7 +515,7 @@ fn status_with_a_personal_token_names_it_and_the_current_account() {
         json!({
             "host": hosts.host(),
             "signedIn": true,
-            "credential": { "kind": "personal-token", "source": "COMPLIANCE_TOKEN" },
+            "credential": { "kind": "personal-token", "source": "STATISTICS_TOKEN" },
             "user": null,
             "account": { "id": 2, "name": "Beta", "current": true },
         })
@@ -563,7 +563,7 @@ fn status_without_a_credential_reports_signed_out_and_exits_0() {
             "account": null,
         })
     );
-    assert!(hosts.compliance.requests().is_empty());
+    assert!(hosts.statistics.requests().is_empty());
 }
 
 #[test]
@@ -571,7 +571,7 @@ fn status_with_a_rejected_credential_prints_the_problem_and_exits_1() {
     let problem = "{\"type\":\"unauthorized\",\"title\":\"Unauthorized\",\"status\":401}";
     let hosts = Hosts::start(|_| Reply::empty(404), move |_| Reply::problem(401, problem));
 
-    let run = hosts.run(&["status"], &[("COMPLIANCE_TOKEN", "cmp_pat_revoked")]);
+    let run = hosts.run(&["status"], &[("STATISTICS_TOKEN", "cmp_pat_revoked")]);
 
     assert_eq!(run.code, 1, "{run:#?}");
     assert_eq!(run.stdout, "");
@@ -584,7 +584,7 @@ fn accounts_list_gets_the_accounts_and_prints_them() {
 
     let run = hosts.run(
         &["accounts", "list"],
-        &[("COMPLIANCE_TOKEN", "cmp_pat_test")],
+        &[("STATISTICS_TOKEN", "cmp_pat_test")],
     );
 
     assert_eq!(run.code, 0, "{run:#?}");
@@ -608,7 +608,7 @@ fn accounts_switch_posts_to_the_accounts_switch_and_prints_the_answer() {
 
     let run = hosts.run(
         &["accounts", "switch", "1"],
-        &[("COMPLIANCE_TOKEN", "cmp_pat_test")],
+        &[("STATISTICS_TOKEN", "cmp_pat_test")],
     );
 
     assert_eq!(run.code, 0, "{run:#?}");
@@ -625,14 +625,14 @@ fn accounts_switch_needs_a_numeric_id() {
 
     let run = hosts.run(
         &["accounts", "switch", "alpha"],
-        &[("COMPLIANCE_TOKEN", "cmp_pat_test")],
+        &[("STATISTICS_TOKEN", "cmp_pat_test")],
     );
 
     assert_eq!(run.code, 2, "{run:#?}");
-    assert!(hosts.compliance.requests().is_empty());
+    assert!(hosts.statistics.requests().is_empty());
 }
 
-/// Starts `compliance login` with a launcher that claims to have opened the browser, and returns it with the
+/// Starts `statistics login` with a launcher that claims to have opened the browser, and returns it with the
 /// `browser_opened` line it wrote first.
 #[cfg(target_os = "linux")]
 fn start_browser_login(hosts: &Hosts, launcher: &std::path::Path) -> (std::process::Child, Value) {
@@ -655,8 +655,8 @@ fn start_browser_login(hosts: &Hosts, launcher: &std::path::Path) -> (std::proce
         std::path::Path::new("."),
         &["login"],
         &[
-            ("COMPLIANCE_URL", host.as_str()),
-            ("COMPLIANCE_CONFIG_DIR", config.as_str()),
+            ("STATISTICS_URL", host.as_str()),
+            ("STATISTICS_CONFIG_DIR", config.as_str()),
             ("DISPLAY", ":99"),
             ("PATH", path.as_str()),
         ],
@@ -665,7 +665,7 @@ fn start_browser_login(hosts: &Hosts, launcher: &std::path::Path) -> (std::proce
     .stdout(Stdio::piped())
     .stderr(Stdio::piped())
     .spawn()
-    .expect("start compliance login");
+    .expect("start statistics login");
     let mut line = String::new();
     BufReader::new(child.stderr.take().expect("stderr"))
         .read_line(&mut line)

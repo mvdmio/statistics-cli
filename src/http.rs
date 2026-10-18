@@ -8,7 +8,7 @@ use crate::config;
 use crate::credential::{self, Credential};
 use crate::failure::{ErrorCode, Failure};
 
-const USER_AGENT: &str = concat!("compliance-cli/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("statistics-cli/", env!("CARGO_PKG_VERSION"));
 const MAX_RATE_LIMIT_RETRIES: usize = 3;
 const DEFAULT_RETRY_AFTER: Duration = Duration::from_secs(1);
 /// A stored access token this close to its expiry is refreshed before the call.
@@ -50,7 +50,7 @@ pub fn read_answer(
     Ok((response.status(), bytes))
 }
 
-/// Calls one Compliance host with one credential. A stored sign-in is refreshed when its access token is about to
+/// Calls one Statistics host with one credential. A stored sign-in is refreshed when its access token is about to
 /// expire, and once more on a 401.
 pub struct Client {
     agent: Agent,

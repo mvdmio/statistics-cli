@@ -5,7 +5,7 @@ use crate::failure::{ErrorCode, Failure};
 use crate::http;
 use crate::oauth::CLIENT_ID;
 
-/// Where Auth answers for one Compliance host, learnt from the host's Protected Resource Metadata (RFC 9728)
+/// Where Auth answers for one Statistics host, learnt from the host's Protected Resource Metadata (RFC 9728)
 /// and then Auth's own discovery document.
 pub struct AuthServer {
     /// The REST API resource every token is bound to (RFC 8707).
