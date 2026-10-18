@@ -329,7 +329,7 @@ fn an_expired_access_token_is_refreshed_before_the_call_and_the_new_refresh_toke
     let hosts = Hosts::start(rotating_auth, ok_api);
     hosts.store("access-1", unix_now() + 30, "refresh-1");
 
-    let run = hosts.run(&["api", "GET", "/api/v1/risks"], &[]);
+    let run = hosts.run(&["api", "GET", "/api/v1/projects"], &[]);
 
     assert_eq!(run.code, 0, "{run:#?}");
     let refresh = hosts.auth_requests("/connect/token");
@@ -361,7 +361,7 @@ fn a_fresh_access_token_is_used_without_a_refresh() {
     let hosts = Hosts::start(rotating_auth, ok_api);
     hosts.store("access-1", unix_now() + 3600, "refresh-1");
 
-    let run = hosts.run(&["api", "GET", "/api/v1/risks"], &[]);
+    let run = hosts.run(&["api", "GET", "/api/v1/projects"], &[]);
 
     assert_eq!(run.code, 0, "{run:#?}");
     assert!(hosts.auth.requests().is_empty());
@@ -382,7 +382,7 @@ fn a_401_refreshes_once_and_retries_once() {
     });
     hosts.store("access-1", unix_now() + 3600, "refresh-1");
 
-    let run = hosts.run(&["api", "GET", "/api/v1/risks"], &[]);
+    let run = hosts.run(&["api", "GET", "/api/v1/projects"], &[]);
 
     assert_eq!(run.code, 0, "{run:#?}");
     assert_eq!(run.stdout_json(), json!({ "ok": 1 }));
@@ -397,7 +397,7 @@ fn a_second_401_after_the_refresh_is_reported() {
     });
     hosts.store("access-1", unix_now() + 3600, "refresh-1");
 
-    let run = hosts.run(&["api", "GET", "/api/v1/risks"], &[]);
+    let run = hosts.run(&["api", "GET", "/api/v1/projects"], &[]);
 
     assert_eq!(run.code, 1, "{run:#?}");
     assert_eq!(run.stderr_json()["type"], "unauthorized");
@@ -417,7 +417,7 @@ fn a_refresh_answered_invalid_grant_removes_only_that_hosts_entry_and_asks_for_l
         "other-refresh",
     );
 
-    let run = hosts.run(&["api", "GET", "/api/v1/risks"], &[]);
+    let run = hosts.run(&["api", "GET", "/api/v1/projects"], &[]);
 
     assert_eq!(run.code, 1, "{run:#?}");
     let error = run.stderr_json();
@@ -443,7 +443,7 @@ fn statistics_token_wins_over_the_stored_sign_in_and_is_never_refreshed_or_store
     hosts.store("access-1", unix_now(), "refresh-1");
 
     let run = hosts.run(
-        &["api", "GET", "/api/v1/risks"],
+        &["api", "GET", "/api/v1/projects"],
         &[("STATISTICS_TOKEN", "cmp_pat_test")],
     );
 
@@ -838,7 +838,7 @@ fn an_invalid_grant_after_another_command_rotated_the_token_keeps_the_newer_sign
     });
     hosts.store("access-1", unix_now(), "refresh-1");
 
-    let run = hosts.run(&["api", "GET", "/api/v1/risks"], &[]);
+    let run = hosts.run(&["api", "GET", "/api/v1/projects"], &[]);
 
     assert_eq!(run.code, 0, "{run:#?}");
     assert_eq!(run.stdout_json(), json!({ "ok": 1 }));

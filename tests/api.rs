@@ -20,15 +20,24 @@ fn api(server: &FakeServer, args: &[&str]) -> support::Run {
 
 #[test]
 fn get_sends_the_bearer_and_user_agent_and_prints_compact_json() {
-    let server = FakeServer::start(|_| Reply::json(200, "{ \"items\": [ { \"id\": \"r1\" } ] }"));
+    let server = FakeServer::start(|_| Reply::json(200, "{ \"items\": [ { \"projectId\": 1 } ] }"));
 
-    let run = api(&server, &["GET", "/api/v1/risks?$top=5"]);
+    let run = api(
+        &server,
+        &[
+            "GET",
+            "/api/v1/projects?from=2026-01-01&to=2026-01-31&page=2",
+        ],
+    );
 
     assert_eq!(run.code, 0, "{run:#?}");
-    assert_eq!(run.stdout, "{\"items\":[{\"id\":\"r1\"}]}\n");
+    assert_eq!(run.stdout, "{\"items\":[{\"projectId\":1}]}\n");
     let request = server.only_request();
     assert_eq!(request.method, "GET");
-    assert_eq!(request.url, "/api/v1/risks?$top=5");
+    assert_eq!(
+        request.url,
+        "/api/v1/projects?from=2026-01-01&to=2026-01-31&page=2"
+    );
     assert_eq!(request.header("Authorization"), Some("Bearer cmp_pat_test"));
     assert_eq!(
         request.header("User-Agent"),
@@ -41,7 +50,7 @@ fn a_trailing_slash_on_the_host_is_ignored() {
     let server = FakeServer::start(|_| Reply::json(200, "{}"));
 
     let run = statistics(
-        &["api", "get", "/api/v1/risks"],
+        &["api", "get", "/api/v1/projects"],
         &[
             ("STATISTICS_URL", &format!("{}/", server.url())),
             ("STATISTICS_TOKEN", TOKEN),
@@ -49,37 +58,43 @@ fn a_trailing_slash_on_the_host_is_ignored() {
     );
 
     assert_eq!(run.code, 0, "{run:#?}");
-    assert_eq!(server.only_request().url, "/api/v1/risks");
+    assert_eq!(server.only_request().url, "/api/v1/projects");
 }
 
 #[test]
 fn inline_body_is_sent_as_json() {
-    let server = FakeServer::start(|_| Reply::json(201, "{\"id\":\"r2\"}"));
+    let server = FakeServer::start(|_| Reply::json(201, "{\"projectId\":2,\"name\":\"Shop\"}"));
 
     let run = api(
         &server,
-        &["POST", "/api/v1/risks", "--body", "{\"title\":\"Flood\"}"],
+        &["POST", "/api/v1/projects", "--body", "{\"name\":\"Shop\"}"],
     );
 
     assert_eq!(run.code, 0, "{run:#?}");
-    assert_eq!(run.stdout_json(), json!({ "id": "r2" }));
+    assert_eq!(run.stdout_json(), json!({ "projectId": 2, "name": "Shop" }));
     let request = server.only_request();
     assert_eq!(request.method, "POST");
     assert_eq!(request.header("Content-Type"), Some("application/json"));
-    assert_eq!(request.body, b"{\"title\":\"Flood\"}");
+    assert_eq!(request.body, b"{\"name\":\"Shop\"}");
 }
 
 #[test]
 fn file_body_is_sent_as_json() {
     let server = FakeServer::start(|_| Reply::json(200, "{}"));
     let dir = tempfile::tempdir().unwrap();
-    fs::write(dir.path().join("risk.json"), "{\"title\":\"Fire\"}").unwrap();
+    fs::write(dir.path().join("project.json"), "{\"name\":\"Garden\"}").unwrap();
     let env = env(&server);
     let env: Vec<(&str, &str)> = env.iter().map(|(k, v)| (*k, v.as_str())).collect();
 
     let run = statistics_in(
         dir.path(),
-        &["api", "PATCH", "/api/v1/risks/r1", "--body", "@risk.json"],
+        &[
+            "api",
+            "PATCH",
+            "/api/v1/projects/1",
+            "--body",
+            "@project.json",
+        ],
         &env,
     );
 
@@ -87,7 +102,7 @@ fn file_body_is_sent_as_json() {
     let request = server.only_request();
     assert_eq!(request.method, "PATCH");
     assert_eq!(request.header("Content-Type"), Some("application/json"));
-    assert_eq!(request.body, b"{\"title\":\"Fire\"}");
+    assert_eq!(request.body, b"{\"name\":\"Garden\"}");
 }
 
 #[test]
@@ -96,7 +111,7 @@ fn a_missing_body_file_fails_locally() {
 
     let run = api(
         &server,
-        &["POST", "/api/v1/risks", "--body", "@no-such-file.json"],
+        &["POST", "/api/v1/projects", "--body", "@no-such-file.json"],
     );
 
     assert_eq!(run.code, 1);
@@ -108,7 +123,7 @@ fn a_missing_body_file_fails_locally() {
 fn an_empty_success_prints_ok_and_the_status() {
     let server = FakeServer::start(|_| Reply::empty(204));
 
-    let run = api(&server, &["DELETE", "/api/v1/risks/r1"]);
+    let run = api(&server, &["DELETE", "/api/v1/projects/1"]);
 
     assert_eq!(run.code, 0, "{run:#?}");
     assert_eq!(run.stdout_json(), json!({ "ok": true, "status": 204 }));
@@ -116,10 +131,10 @@ fn an_empty_success_prints_ok_and_the_status() {
 
 #[test]
 fn a_problem_lands_on_stderr_unchanged() {
-    const PROBLEM: &str = "{\"type\":\"not-found\",\"title\":\"Not found\",\"status\":404,\"detail\":\"No Risk r9.\"}";
+    const PROBLEM: &str = "{\"type\":\"not-found\",\"title\":\"Not found\",\"status\":404,\"detail\":\"No Project 9.\"}";
     let server = FakeServer::start(|_| Reply::problem(404, PROBLEM));
 
-    let run = api(&server, &["GET", "/api/v1/risks/r9"]);
+    let run = api(&server, &["GET", "/api/v1/projects/9"]);
 
     assert_eq!(run.code, 1);
     assert_eq!(run.stderr.trim_end(), PROBLEM);
@@ -131,7 +146,7 @@ fn a_non_json_error_body_becomes_a_json_error() {
     let server =
         FakeServer::start(|_| Reply::with_type(502, "text/html", b"<html>Bad gateway</html>"));
 
-    let run = api(&server, &["GET", "/api/v1/risks"]);
+    let run = api(&server, &["GET", "/api/v1/projects"]);
 
     assert_eq!(run.code, 1);
     assert_eq!(run.stderr_json()["error"], "http");
@@ -147,7 +162,7 @@ fn large_numbers_keep_their_precision() {
         )
     });
 
-    let run = api(&server, &["GET", "/api/v1/risks"]);
+    let run = api(&server, &["GET", "/api/v1/projects"]);
 
     assert_eq!(run.code, 0, "{run:#?}");
     assert_eq!(
@@ -161,7 +176,7 @@ fn a_forbidden_that_is_no_handoff_is_an_error() {
     const PROBLEM: &str = "{\"type\":\"forbidden\",\"title\":\"Forbidden\",\"status\":403}";
     let server = FakeServer::start(|_| Reply::problem(403, PROBLEM));
 
-    let run = api(&server, &["POST", "/api/v1/license/subscribe"]);
+    let run = api(&server, &["DELETE", "/api/v1/projects/1"]);
 
     assert_eq!(run.code, 1);
     assert_eq!(run.stderr.trim_end(), PROBLEM);
@@ -170,10 +185,10 @@ fn a_forbidden_that_is_no_handoff_is_an_error() {
 
 #[test]
 fn a_browser_handoff_problem_is_printed_as_an_ordinary_problem() {
-    const PROBLEM: &str = "{\"type\":\"browser-handoff\",\"title\":\"Finish in the browser\",\"status\":403,\"detail\":\"Subscribing charges money.\",\"handoffUrl\":\"https://auth.example/subscribe\"}";
+    const PROBLEM: &str = "{\"type\":\"browser-handoff\",\"title\":\"Finish in the browser\",\"status\":403,\"detail\":\"Confirm the delete in the browser.\",\"handoffUrl\":\"https://auth.example/confirm\"}";
     let server = FakeServer::start(|_| Reply::problem(403, PROBLEM));
 
-    let run = api(&server, &["POST", "/api/v1/license/subscribe"]);
+    let run = api(&server, &["DELETE", "/api/v1/projects/1"]);
 
     assert_eq!(run.code, 1, "{run:#?}");
     assert_eq!(run.stderr.trim_end(), PROBLEM);
@@ -186,11 +201,11 @@ fn usage_mistakes_exit_2_before_any_request() {
 
     for args in [
         vec!["GET"],
-        vec!["GET", "/api/v1/risks", "--unknown"],
-        vec!["FETCH", "/api/v1/risks"],
-        vec!["GET", "api/v1/risks"],
-        vec!["GET", "/api/v1/risks with space"],
-        vec!["POST", "/api/v1/risks", "--body", "{not json"],
+        vec!["GET", "/api/v1/projects", "--unknown"],
+        vec!["FETCH", "/api/v1/projects"],
+        vec!["GET", "api/v1/projects"],
+        vec!["GET", "/api/v1/projects with space"],
+        vec!["POST", "/api/v1/projects", "--body", "{not json"],
     ] {
         let run = api(&server, &args);
 
@@ -219,7 +234,7 @@ fn rate_limited_then_ok(limited: usize) -> FakeServer {
 fn two_rate_limits_then_success_retries_twice() {
     let server = rate_limited_then_ok(2);
 
-    let run = api(&server, &["GET", "/api/v1/risks"]);
+    let run = api(&server, &["GET", "/api/v1/projects"]);
 
     assert_eq!(run.code, 0, "{run:#?}");
     assert_eq!(run.stdout_json(), json!({ "done": true }));
@@ -230,7 +245,7 @@ fn two_rate_limits_then_success_retries_twice() {
 fn four_rate_limits_give_up_after_three_retries() {
     let server = rate_limited_then_ok(4);
 
-    let run = api(&server, &["GET", "/api/v1/risks"]);
+    let run = api(&server, &["GET", "/api/v1/projects"]);
 
     assert_eq!(run.code, 1, "{run:#?}");
     assert_eq!(run.stderr_json()["type"], "rate-limited");
@@ -249,7 +264,7 @@ fn retry_after_as_a_past_http_date_retries_at_once() {
         }
     });
 
-    let run = api(&server, &["GET", "/api/v1/risks"]);
+    let run = api(&server, &["GET", "/api/v1/projects"]);
 
     assert_eq!(run.code, 0, "{run:#?}");
     assert_eq!(server.requests().len(), 2);
@@ -261,7 +276,7 @@ fn a_binary_response_is_refused() {
         Reply::with_type(200, "application/pdf", b"%PDF-1.7\n\x00\x01\x02\xff binary")
     });
 
-    let run = api(&server, &["GET", "/api/v1/reports/q3"]);
+    let run = api(&server, &["GET", "/api/v1/projects/1/export"]);
 
     assert_eq!(run.code, 1);
     assert!(run.stdout.is_empty());
@@ -273,7 +288,7 @@ fn no_credential_fails_locally_and_names_both_ways_in() {
     let server = FakeServer::start(|_| Reply::json(200, "{}"));
 
     let run = statistics(
-        &["api", "GET", "/api/v1/risks"],
+        &["api", "GET", "/api/v1/projects"],
         &[("STATISTICS_URL", &server.url())],
     );
 
@@ -289,7 +304,7 @@ fn no_credential_fails_locally_and_names_both_ways_in() {
 #[test]
 fn an_invalid_host_is_a_local_error_not_a_usage_mistake() {
     let run = statistics(
-        &["api", "GET", "/api/v1/risks"],
+        &["api", "GET", "/api/v1/projects"],
         &[("STATISTICS_URL", "not a url"), ("STATISTICS_TOKEN", TOKEN)],
     );
 
@@ -306,7 +321,7 @@ fn an_unreachable_host_is_a_network_error() {
         .port();
 
     let run = statistics(
-        &["api", "GET", "/api/v1/risks"],
+        &["api", "GET", "/api/v1/projects"],
         &[
             ("STATISTICS_URL", &format!("http://127.0.0.1:{port}")),
             ("STATISTICS_TOKEN", TOKEN),
